@@ -215,7 +215,17 @@ Use "Phomemo-M02.ppd.gz" for M02, "Phomemo-M02Pro.ppd.gz" for M02 Pro, and "Phom
 
 ###### 2.2.2.1.2 M110, M120, M220
 
-Use "Phomemo-M110.ppd.gz" for M110, "Phomemo-M120.ppd.gz" for M120, and "Phomemo-M220.ppd.gz" for M220 (same driver, M220 exposes w70h80).
+Use "Phomemo-M110.ppd.gz" for M110 and "Phomemo-M120.ppd.gz" for M120 (same driver/filter).
+
+M220 uses its own "Phomemo-M220.ppd.gz" and `rastertopm220` filter instead:
+the M220's print head is wider (~72mm/576 dots @ 203dpi) than its labels, and
+labels run centred under it rather than flush with its left edge. The shared
+M110/M120 filter emits the raster at the width of the selected MediaSize
+starting at column 0, which prints every M220 label shifted off-centre
+(confirmed against the vendor Windows driver's own device config: M220A has
+printWidth=72, maxPrintingWidth=72, printCenter=1). `rastertopm220` instead
+pads/centres the raster to the full head width before sending it, matching
+the Windows driver.
 The -p option defines the printer name. It should be changed according to the printer used.
 
 ```
@@ -259,7 +269,17 @@ Use "Phomemo-M02.ppd.gz" for M02, "Phomemo-M02Pro.ppd.gz" for M02 Pro, and "Phom
 
 ###### 2.2.2.1.2 M110, M120, M220
 
-Use "Phomemo-M110.ppd.gz" for M110, "Phomemo-M120.ppd.gz" for M120, and "Phomemo-M220.ppd.gz" for M220 (same driver, M220 exposes w70h80).
+Use "Phomemo-M110.ppd.gz" for M110 and "Phomemo-M120.ppd.gz" for M120 (same driver/filter).
+
+M220 uses its own "Phomemo-M220.ppd.gz" and `rastertopm220` filter instead:
+the M220's print head is wider (~72mm/576 dots @ 203dpi) than its labels, and
+labels run centred under it rather than flush with its left edge. The shared
+M110/M120 filter emits the raster at the width of the selected MediaSize
+starting at column 0, which prints every M220 label shifted off-centre
+(confirmed against the vendor Windows driver's own device config: M220A has
+printWidth=72, maxPrintingWidth=72, printCenter=1). `rastertopm220` instead
+pads/centres the raster to the full head width before sending it, matching
+the Windows driver.
 The -p option defines the printer name. It should be changed according to the printer used.
 
 ```
@@ -506,3 +526,43 @@ Dumpping USB packets.
   0x1f 0xf0 0x05 0x00
   0x1f 0xf0 0x03 0x00
 ```
+
+## 6. M220/M220A print head centering
+
+Unlike M110/M120, the M220/M220A's print head is physically wider
+(~72mm / 576 dots @ 203dpi) than the labels it's normally loaded with,
+and labels run centred under the head rather than flush with its left
+edge.
+
+This was confirmed two ways:
+
+1. Comparing USB captures of the same label printed from Windows vs.
+   Linux: the Windows driver always sends a 576-dot-wide raster with
+   the label content centred inside it, while the shared
+   M110/M120/M220 filter (as it worked before this fix) sent a raster
+   only as wide as the selected MediaSize, starting at column 0 -
+   i.e. flush with the head's left edge, which prints every label
+   that's narrower than 72mm shifted/offset from where the stock
+   actually sits.
+2. Extracting the vendor Windows driver's own device database
+   (Labelife's `AimoDetails/PrinterDetails`, a .NET BinaryFormatter-
+   serialized file) for the `M220A` entry:
+
+   ```json
+   {
+     "productDpi": 203,
+     "printWidth": "72",
+     "maxPrintingWidth": "72",
+     "printCenter": 1
+   }
+   ```
+
+   `printCenter: 1` is the vendor's own flag confirming the content
+   is meant to be centred on the head, not flush-left.
+
+`rastertopm220` (`cups/filter/rastertopm220.py` + `cups/drv/phomemo-m220.drv`)
+implements this: it pads every raster line left/right to the full
+`PRINTHEAD_WIDTH_DOTS` (576, overridable via the
+`PHOMEMO_M220_HEAD_WIDTH_DOTS` environment variable) with the real
+page content centred in it, before emitting the `GS v 0` block -
+independent of which MediaSize was selected in CUPS.

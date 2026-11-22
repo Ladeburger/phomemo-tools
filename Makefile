@@ -1,5 +1,5 @@
 NAME = phomemo-tools
-VERSION = 2.3
+VERSION = 2.4
 
 FILES = Makefile
 FILES += phomemo-tools.spec
@@ -13,6 +13,7 @@ FILES += cups/Makefile
 FILES += cups/README.md
 FILES += cups/filter/rastertopm02_t02.py
 FILES += cups/filter/rastertopm110.py
+FILES += cups/filter/rastertopm220.py
 FILES += cups/filter/rastertopd30.py
 FILES += cups/filter/rastertopm04.py
 FILES += cups/filter/rastertopm832.py
@@ -20,6 +21,7 @@ FILES += cups/backend/phomemo.py
 FILES += cups/drv/phomemo-m02_t02.drv
 FILES += cups/drv/phomemo-m02pro.drv
 FILES += cups/drv/phomemo-m110.drv
+FILES += cups/drv/phomemo-m220.drv
 FILES += cups/drv/phomemo-d30.drv
 FILES += cups/drv/phomemo-m421.drv
 FILES += cups/drv/phomemo-m04.drv

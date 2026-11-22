@@ -1,5 +1,5 @@
 Name: phomemo-tools
-Version: 2.3
+Version: 2.4
 Release: 1%{?dist}
 Summary: A set of tools to use Phomemo M02 printer
 License: GPLv3
@@ -62,12 +62,14 @@ semanage permissive -a cupsd_t
 /usr/share/cups/drv/phomemo-m02_t02.drv
 /usr/share/cups/drv/phomemo-m02pro.drv
 /usr/share/cups/drv/phomemo-m110.drv
+/usr/share/cups/drv/phomemo-m220.drv
 /usr/share/cups/drv/phomemo-d30.drv
 /usr/share/cups/drv/phomemo-m421.drv
 /usr/share/cups/drv/phomemo-m04.drv
 /usr/share/cups/drv/phomemo-m832.drv
 /usr/lib/cups/filter/rastertopm02_t02
 /usr/lib/cups/filter/rastertopm110
+/usr/lib/cups/filter/rastertopm220
 /usr/lib/cups/filter/rastertopd30
 /usr/lib/cups/filter/rastertopm04
 /usr/lib/cups/filter/rastertopm832
@@ -77,6 +79,13 @@ semanage permissive -a cupsd_t
 /usr/share/phomemo/images
 
 %changelog
+* Sun Nov 22 2026 (local fix) - 2.4
+- Split M220 off phomemo-m110.drv into its own phomemo-m220.drv +
+  rastertopm220 filter, which centers the raster image on the M220's
+  full ~72mm print head instead of emitting it flush-left. Fixes a
+  systematic horizontal offset (printCenter behavior, confirmed from
+  the Windows Labelife driver's own device config: printWidth=72,
+  maxPrintingWidth=72, printCenter=1 @ 203dpi).
 * Fri Dec 26 2025 Laurent Vivier <laurent@vivier.eu> - 2.3
 - Add M421
 * Sat Dec 20 2025 Laurent Vivier <laurent@vivier.eu> - 2.2
