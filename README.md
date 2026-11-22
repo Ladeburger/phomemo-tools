@@ -566,3 +566,37 @@ implements this: it pads every raster line left/right to the full
 `PHOMEMO_M220_HEAD_WIDTH_DOTS` environment variable) with the real
 page content centred in it, before emitting the `GS v 0` block -
 independent of which MediaSize was selected in CUPS.
+
+## 7. M220/M220A default print density was too dark
+
+`rastertopm220.py` (inherited from `rastertopm110.py`) hard-coded
+print density `10` (`ESC N 04 10`) regardless of any argument passed
+to `print_header()` - the `density` parameter existed but was never
+actually forwarded, it was a literal `10` in the call.
+
+The same `AimoDetails/PrinterDetails` device database used for the
+head-width fix above also lists the printer's valid density range and
+its factory-recommended value, as a JSON blob in the `concentration`
+field, for both the `M220` and `M220A` entries:
+
+```json
+[
+  {"key":"1","val":"1"}, {"key":"2","val":"2"}, ..., 
+  {"key":"6","val":"6","recommend":"1"},
+  ..., {"key":"15","val":"15"}
+]
+```
+
+I.e. valid range 1-15, with **6** flagged as the vendor's recommended
+setting - noticeably lighter than the hard-coded 10. This was reported
+as the print coming out too dark/dense ("Druckdichte zu hoch").
+
+Fixed by:
+- Changing the fallback default from 10 to 6 in `rastertopm220.py`.
+- Adding a `Darkness` PPD option (same pattern as `rastertopm832.py`'s
+  `Darkness` option) so it can be tuned per job/queue without editing
+  the filter, with choices at 3/5/6(default)/8/10/15.
+- The filter reads the value back via `cupsInteger0` (the PPD's
+  `setpagedevice` key), which arrives in the CUPS raster header as
+  `header.cupsInteger1`; anything unset/out of the 1-15 range falls
+  back to 6.

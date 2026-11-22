@@ -86,6 +86,20 @@ MaxSize 0.00 0.00
 MediaType 11 "Continuous"
 MediaType 38 "LabelWithMarks/Label With Marks"
 
+// Print density/darkness, 1 (lightest) - 15 (darkest). The vendor's own
+// Windows driver config (Labelife AimoDetails/PrinterDetails, M220A
+// entry) lists this exact 1-15 range and flags 6 as "recommend":"1" -
+// i.e. the factory-recommended value. rastertopm220.py falls back to
+// 6 if this option is never set (e.g. raw/driverless print paths), so
+// Default here only needs to exist for the PPD's option UI.
+Option "Darkness/Print Darkness" PickOne AnySetup 10.0
+  Choice "Light/Light (3)" "<</cupsInteger0 3>>setpagedevice"
+  Choice "Lightmedium/Light-Medium (5)" "<</cupsInteger0 5>>setpagedevice"
+  *Choice "Default/Printer Recommended (6)" "<</cupsInteger0 6>>setpagedevice"
+  Choice "Medium/Medium (8)" "<</cupsInteger0 8>>setpagedevice"
+  Choice "Dark/Dark (10)" "<</cupsInteger0 10>>setpagedevice"
+  Choice "Darkest/Darkest (15)" "<</cupsInteger0 15>>setpagedevice"
+
 {
   ModelName "M220"
   PCFileName "Phomemo-M220.ppd"

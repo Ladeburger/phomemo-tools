@@ -105,13 +105,25 @@ def read_ras3(rdata):
 
     return pages
 
+# Vendor-recommended print density (1=lightest .. 15=darkest), used
+# when the CUPS "Darkness" option is unset/out of range. Taken from
+# the Windows driver's own device config (Labelife
+# AimoDetails/PrinterDetails): the M220A entry's density list flags
+# 6 as "recommend":"1". The filter previously hard-coded 10 here
+# regardless of any argument passed in, which is noticeably darker/
+# hotter than the factory recommendation and was reported to over-
+# print ("Druckdichte zu hoch").
+DEFAULT_DENSITY = 6
+MIN_DENSITY = 1
+MAX_DENSITY = 15
+
 def select_speed(file, speed = 5):
     file.write(ESC + b'\x4e' + b'\x0d') # select Print Speed
     file.write(speed.to_bytes(1, 'little'))
     return
 
-def select_density(file, density = 10):
-    file.write(ESC + b'\x4e' + b'\x04') # select Print Speed
+def select_density(file, density = DEFAULT_DENSITY):
+    file.write(ESC + b'\x4e' + b'\x04') # select Print Density
     file.write(density.to_bytes(1, 'little'))
     return
 
@@ -120,9 +132,9 @@ def select_media_type(file, media_type):
     file.write(media_type.to_bytes(1, 'little'))
     return
 
-def print_header(file, media_type = 10):
+def print_header(file, media_type = 10, density = DEFAULT_DENSITY):
     select_speed(file, 5)
-    select_density(file, 10)
+    select_density(file, density)
     select_media_type(file, media_type)
     return
 
@@ -182,10 +194,18 @@ for i, datatuple in enumerate(pages):
     # edge. See the module docstring for why this is necessary.
     im = center_on_printhead(im)
 
+    # PPD cupsInteger0 (zero-based) arrives here as cupsInteger1. Fall
+    # back to the vendor-recommended density if the option was never
+    # set (e.g. 0 from a raw/driverless job) or is out of the
+    # printer's valid 1-15 range.
+    density = header.cupsInteger1
+    if not (MIN_DENSITY <= density <= MAX_DENSITY):
+        density = DEFAULT_DENSITY
+
     line = 0
 
     with os.fdopen(sys.stdout.fileno(), "wb", closefd=False) as stdout:
-        print_header(stdout, header.cupsMediaType)
+        print_header(stdout, header.cupsMediaType, density)
         lines = im.height
         print_raster(stdout, im, line, lines)
         print_footer(stdout)
