@@ -117,6 +117,22 @@ DEFAULT_DENSITY = 6
 MIN_DENSITY = 1
 MAX_DENSITY = 15
 
+# select_speed() (ESC N 0D <1-5>) is defined but deliberately never
+# called from print_header() below. rastertopm110.py (and this filter,
+# until this fix) always forced speed=5 on every M220 job. The vendor
+# Windows driver never sends this command at all for M220 - confirmed
+# across four separate USB captures of real M220 print jobs, none of
+# which contain an ESC N 0D byte sequence - so the printer is left on
+# whatever speed its firmware already has set.
+#
+# This was found while investigating a label printing lighter on
+# Windows than on Linux for the same job: the Linux capture had a
+# *lower* density byte than the Windows one (6 vs 7) yet printed
+# *darker*, which density alone cannot explain. The only other
+# difference was this forced speed=5 override (plus a still-unexplained
+# extra `1F 11 35 00` command Windows sends and this filter does not).
+# Removing the override makes the firmware's own default speed apply,
+# matching Windows' behaviour.
 def select_speed(file, speed = 5):
     file.write(ESC + b'\x4e' + b'\x0d') # select Print Speed
     file.write(speed.to_bytes(1, 'little'))
@@ -133,7 +149,6 @@ def select_media_type(file, media_type):
     return
 
 def print_header(file, media_type = 10, density = DEFAULT_DENSITY):
-    select_speed(file, 5)
     select_density(file, density)
     select_media_type(file, media_type)
     return

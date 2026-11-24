@@ -600,3 +600,56 @@ Fixed by:
   `setpagedevice` key), which arrives in the CUPS raster header as
   `header.cupsInteger1`; anything unset/out of the 1-15 range falls
   back to 6.
+
+## 8. M220/M220A still printed lighter/darker than Windows: speed override
+
+Even after fixing the density default/option above, a side-by-side
+comparison of two real print jobs (same `labels2.pdf` label, one
+printed from Windows, one from Linux/CUPS) showed the Linux print came
+out visibly *darker* than Windows, despite the Linux job's density
+byte (6) being *lower* than the Windows job's (7) - density alone
+cannot explain that.
+
+Comparing the two USB captures byte-for-byte (after correctly
+isolating only the bulk-OUT packets to the printer's data endpoint -
+earlier passes had accidentally mixed in unrelated interrupt/status
+IN packets from a different endpoint) turned up two header
+differences, not one:
+
+```
+Linux:   1B 4E 0D 05   1B 4E 04 06   1F 11 0A
+         ^^^^^^^^^^^   ^^^^^^^^^^^   ^^^^^^^^
+         speed=5       density=6     media type
+
+Windows:               1B 4E 04 07   1F 11 0A   1F 11 35 00
+                        ^^^^^^^^^^^   ^^^^^^^^   ^^^^^^^^^^
+                        density=7     media type  (unknown)
+```
+
+Windows never sends an `ESC N 0D` (print speed) command for the M220
+at all - confirmed across four separate Windows USB captures of real
+M220 jobs, none of which contain that byte sequence. `rastertopm110.py`
+(and `rastertopm220.py`, inherited unchanged until now) always forced
+`speed=5` on every job via a hard-coded `select_speed(file, 5)` call.
+Thermal print darkness is sensitive to dwell time per dot, which print
+speed directly controls, so forcing a fixed speed the firmware wasn't
+designed around is a plausible explanation for the mismatch - separate
+from, and in addition to, the density value itself.
+
+Fixed by no longer calling `select_speed()` from `print_header()` in
+`rastertopm220.py`, so the command is never sent and the printer keeps
+whatever speed its firmware already has, matching Windows' behaviour.
+The function itself is kept (unused) as documentation of the command
+format, in case a future PPD option wants to expose it deliberately.
+
+Verified: filter output is now byte-identical to the pre-fix output
+with exactly the 4-byte `1B 4E 0D 05` sequence removed from the front
+and nothing else changed (image centering, density option, footer all
+untouched).
+
+**Not yet explained:** the extra `1F 11 35 00` command Windows sends
+and this filter does not. Its meaning for the M220 specifically is
+unconfirmed (a similarly-named command on the unrelated M832 means
+"compression: raw", which may or may not carry over). If removing the
+speed override alone doesn't fully close the gap to Windows' output in
+a real test print, this command is the next thing to investigate.
