@@ -100,6 +100,23 @@ Option "Darkness/Print Darkness" PickOne AnySetup 10.0
   Choice "Dark/Dark (10)" "<</cupsInteger0 10>>setpagedevice"
   Choice "Darkest/Darkest (15)" "<</cupsInteger0 15>>setpagedevice"
 
+// Print speed, 1 (slowest) - 5 (fastest). The vendor Windows driver
+// never sends this command for the M220 (confirmed across several
+// real captures), leaving the printer on whatever speed its firmware
+// already has - which, without a power cycle, can be whatever a PRIOR
+// job last set it to. "Default" here means "send no speed command at
+// all" (0 is out of the 1-5 range, rastertopm220.py treats that as
+// "leave it alone"), matching Windows. The numbered choices are for
+// deliberately testing whether speed has any visible effect on
+// darkness, independent of persisted firmware state.
+Option "Speed/Print Speed" PickOne AnySetup 10.0
+  *Choice "Default/Leave Unset (vendor behaviour)" "<</cupsInteger1 0>>setpagedevice"
+  Choice "Slowest/Slowest (1)" "<</cupsInteger1 1>>setpagedevice"
+  Choice "Slow/Slow (2)" "<</cupsInteger1 2>>setpagedevice"
+  Choice "Medium/Medium (3)" "<</cupsInteger1 3>>setpagedevice"
+  Choice "Fast/Fast (4)" "<</cupsInteger1 4>>setpagedevice"
+  Choice "Fastest/Fastest (5)" "<</cupsInteger1 5>>setpagedevice"
+
 {
   ModelName "M220"
   PCFileName "Phomemo-M220.ppd"

@@ -690,3 +690,76 @@ story and this command can be considered a confirmed no-op/format
 declaration. If it does change something, that would mean the M04/M832
 "compression: raw" label doesn't fully apply to the M220 and the
 command has some other, still-unknown effect there.
+
+## 10. Neither change (8 or 9) made a visible difference - speed direction confirmed, persisted firmware state suspected
+
+Real-world result: removing the speed override and adding the raw
+compression declaration, tested together on real hardware, produced no
+noticeable change versus the earlier darker print.
+
+Before investigating further, the "higher density = darker" assumption
+from section 7 was verified directly: printing the same label with the
+PPD's `Darkness` option set to `Light` (3) and then to `Darkest` (15)
+confirmed `Darkest` is in fact darker. So the density scale direction
+is as assumed, and the section 7 fix (default 10 -> 6, to print
+lighter) was correctly directed.
+
+That reopens the original puzzle, though: in the `print_label_light`
+(Windows, density 7) vs. `print_darker` (Linux, density 6) comparison,
+Windows sent the *higher* density value yet printed *lighter* - the
+confirmed-correct direction says it should have been very slightly
+*darker*, not lighter, and the 6-vs-7 gap is tiny regardless. Density
+alone was never a sufficient explanation for that comparison's gap,
+and remains not one.
+
+The leading remaining suspect: the device was not power-cycled between
+the Windows and Linux test prints. `print_darker.tshark` was captured
+with the *old* filter, which actively sent `ESC N 0D 05` (speed=5) -
+so at the time speed really was 5 on the device. Section 8's fix only
+stops *re-sending* that command going forward; it cannot un-set a
+value the firmware already has (persisted) from that or any earlier
+session. Without a power cycle, "no command sent" and "command sent
+with the same value as before" are indistinguishable to the printer -
+which would fully explain why removing the override produced no
+visible change in the test.
+
+To test this properly - and to let speed be compared the same
+deliberate way density already was - `rastertopm220.py` and
+`phomemo-m220.drv` gained a second PPD option, `Speed` (1-5, plus a
+`Default` choice that means "send no command", matching Windows):
+
+```
+Option "Speed/Print Speed" PickOne AnySetup 10.0
+  *Choice "Default/Leave Unset (vendor behaviour)" "<</cupsInteger1 0>>setpagedevice"
+  Choice "Slowest/Slowest (1)" ...
+  ...
+  Choice "Fastest/Fastest (5)" ...
+```
+
+Wired through `cupsInteger1` (PPD) -> `header.cupsInteger2` (raster
+header), same pattern as `Darkness`/`cupsInteger0`/`cupsInteger1`. 0 or
+out-of-range means `print_header()`'s new `speed` parameter stays
+`None` and `select_speed()` is never called - today's actual default
+behaviour is preserved unless a speed is explicitly chosen.
+
+**Next step, requires physical testing:**
+1. Power-cycle the M220 (fully off and back on, or unplug/replug USB)
+   before each print below, to rule out leftover state between runs.
+2. Print the same label with `-o Speed=Slowest` and, after another
+   power cycle, with `-o Speed=Fastest` (density held fixed, e.g. via
+   `-o Darkness=Default`), and compare which one is physically darker
+   - exactly like the `Darkness` test in this section. That tells us
+   whether speed affects darkness on this device at all, and in which
+   direction, instead of relying on an ambiguous "leave it alone".
+3. Separately, with a single power cycle and *no* explicit `Speed`
+   option (`Speed=Default`), compare one print against a second print
+   done immediately after *without* powering off in between - if those
+   two differ, that's further evidence of persisted state being a
+   factor independent of our filter's behaviour.
+
+Verified so far (protocol level only, not yet physically): the new
+`Speed` option round-trips correctly through `pdftoraster` ->
+`rastertopm220.py` for Default/Slowest/Fastest and in combination with
+`Darkness`; omitting it or any other explicit speed produces the same
+header as before (no `ESC N 0D` at all); image centering, the density
+option, and the footer are unaffected.

@@ -117,6 +117,12 @@ DEFAULT_DENSITY = 6
 MIN_DENSITY = 1
 MAX_DENSITY = 15
 
+# Valid range for the (optional, see select_speed() below) print speed
+# command. 0, or anything outside 1-5, means "do not send a speed
+# command at all" - this is the PPD's "Default/Leave Unset" choice.
+MIN_SPEED = 1
+MAX_SPEED = 5
+
 # select_speed() (ESC N 0D <1-5>) is defined but deliberately never
 # called from print_header() below. rastertopm110.py (and this filter,
 # until this fix) always forced speed=5 on every M220 job. The vendor
@@ -167,7 +173,15 @@ def select_raw_compression(file):
     file.write(b'\x1f' + b'\x11' + b'\x35' + b'\x00')
     return
 
-def print_header(file, media_type = 10, density = DEFAULT_DENSITY):
+def print_header(file, media_type = 10, density = DEFAULT_DENSITY, speed = None):
+    # speed is None by default, meaning "send no speed command at all"
+    # (matching the vendor Windows driver). Pass 1-5 to explicitly send
+    # ESC N 0D <speed> instead, e.g. for A/B-testing whether speed has
+    # any effect on darkness independent of the printer's persisted
+    # firmware state (which a missing command cannot reset - only a
+    # power cycle, or another explicit speed command, can).
+    if speed is not None:
+        select_speed(file, speed)
     select_density(file, density)
     select_media_type(file, media_type)
     select_raw_compression(file)
@@ -237,10 +251,19 @@ for i, datatuple in enumerate(pages):
     if not (MIN_DENSITY <= density <= MAX_DENSITY):
         density = DEFAULT_DENSITY
 
+    # PPD cupsInteger1 (zero-based) arrives here as cupsInteger2. Unlike
+    # density, there is no fallback: 0/unset/out-of-range means "don't
+    # send a speed command", matching vendor behaviour (see select_speed
+    # docs above). Only an explicit 1-5 from the PPD's "Speed" option
+    # causes a command to actually go out, for deliberate A/B testing.
+    speed = header.cupsInteger2
+    if not (MIN_SPEED <= speed <= MAX_SPEED):
+        speed = None
+
     line = 0
 
     with os.fdopen(sys.stdout.fileno(), "wb", closefd=False) as stdout:
-        print_header(stdout, header.cupsMediaType, density)
+        print_header(stdout, header.cupsMediaType, density, speed)
         lines = im.height
         print_raster(stdout, im, line, lines)
         print_footer(stdout)
