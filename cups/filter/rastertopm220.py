@@ -148,9 +148,29 @@ def select_media_type(file, media_type):
     file.write(media_type.to_bytes(1, 'little'))
     return
 
+def select_raw_compression(file):
+    # US 11 35 00 - sent by the Windows driver right after media type on
+    # every M220 job seen so far, but never by rastertopm110/rastertopm220
+    # until now. The same byte sequence is used, in the same "right after
+    # media type" position, by two unrelated Phomemo families already in
+    # this repo - rastertopm04.py and rastertopm832.py - both documenting
+    # it as "compression: raw", i.e. telling the firmware the GS v 0 bit
+    # image that follows is uncompressed. That matches what this filter
+    # already sends (print_raster() never compresses), so emitting it is
+    # a safe no-op if the M04/M832 meaning holds for the M220 too.
+    #
+    # Unconfirmed on real M220 hardware whether it has any visible effect
+    # (e.g. on darkness) or is purely a format declaration; added to make
+    # the command stream match the vendor driver byte-for-byte (besides
+    # the density value itself) for testing. If a real test print shows
+    # no difference from omitting it, it can be dropped again.
+    file.write(b'\x1f' + b'\x11' + b'\x35' + b'\x00')
+    return
+
 def print_header(file, media_type = 10, density = DEFAULT_DENSITY):
     select_density(file, density)
     select_media_type(file, media_type)
+    select_raw_compression(file)
     return
 
 def center_on_printhead(image, head_width_dots = PRINTHEAD_WIDTH_DOTS):

@@ -653,3 +653,40 @@ unconfirmed (a similarly-named command on the unrelated M832 means
 "compression: raw", which may or may not carry over). If removing the
 speed override alone doesn't fully close the gap to Windows' output in
 a real test print, this command is the next thing to investigate.
+
+## 9. Added the `1F 11 35 00` command experimentally
+
+Checked this repo's other two independently reverse-engineered Phomemo
+filters, `rastertopm04.py` and `rastertopm832.py`: both send the exact
+same `US 11 35 00` sequence, in the same "right after media type"
+position, and both document it identically as **"compression: raw"**
+(telling the firmware the following `GS v 0` bit image is
+uncompressed). Two unrelated families agreeing on the same meaning for
+the same bytes is reasonably strong evidence, though it is still
+unconfirmed specifically for the M220.
+
+Since this filter always sends an uncompressed `GS v 0` block anyway
+(no RLE or other encoding is implemented), declaring that explicitly
+is a safe no-op *if* the M04/M832 meaning carries over - it should
+have no effect either way (consistent with it being a pure format
+flag, not a heat/darkness setting) - but it makes the command stream
+match the Windows driver byte-for-byte, order and length included,
+bar the density value itself:
+
+```
+Ours (after this change): 1B 4E 04 06 1F 11 0A 1F 11 35 00
+Windows (print_label_light.pcapng): 1B 4E 04 07 1F 11 0A 1F 11 35 00
+```
+
+Added via a new `select_raw_compression()` call in `print_header()`.
+Verified end-to-end: output structure now matches Windows' exactly
+(same commands, same order, same length); image centering, the
+density option, and the footer remain unaffected.
+
+**This still needs a real test print to confirm it changes nothing (or
+something) visually** - if a print with and without this command looks
+identical, the speed-override removal in section 8 was the whole
+story and this command can be considered a confirmed no-op/format
+declaration. If it does change something, that would mean the M04/M832
+"compression: raw" label doesn't fully apply to the M220 and the
+command has some other, still-unknown effect there.
